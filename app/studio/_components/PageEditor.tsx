@@ -1,5 +1,5 @@
 'use client'
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { useOptimisticBlocks } from '@/hooks/useOptimisticBlocks'
 import { useToast } from '@/hooks/useToast'
 import { patchBlockField, patchBlockOrder } from '@/lib/sanity/mutations'
@@ -24,6 +24,11 @@ export function PageEditor({ pageId, slug, title, initialBlocks }: PageEditorPro
     initialBlocks[0]?._key ?? null
   )
 
+  // Debounce timers and rollback snapshots keyed by block._key.
+  // UI update is instant; Sanity write is delayed 300ms after last keystroke.
+  const persistTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
+  const persistSnapshotsRef = useRef<Map<string, PageBlock[]>>(new Map())
+
   const selectedBlock = blocks.find((b) => b._key === selectedKey) ?? null
 
   // Called from SortableBlockList after a drag ends.
@@ -43,19 +48,35 @@ export function PageEditor({ pageId, slug, title, initialBlocks }: PageEditorPro
   )
 
   // Called from BlockEditPanel on every field change.
-  // Optimistic update fires immediately; Sanity write is background.
+  // Optimistic update fires immediately; Sanity write is debounced 300ms
+  // so rapid keystrokes produce one network request, not one per character.
   const handleFieldUpdate = useCallback(
-    async (key: string, patch: Record<string, unknown>) => {
-      const snapshot = getSnapshot()
-      updateField(key, patch)  // instant UI update
-
-      try {
-        await patchBlockField(pageId, key, patch)
-        await revalidatePage(slug)
-      } catch {
-        revert(snapshot)
-        showToast('Failed to save changes. Your edits have been reverted.')
+    (key: string, patch: Record<string, unknown>) => {
+      // Capture snapshot only at the start of an editing burst (before first optimistic update)
+      if (!persistTimersRef.current.has(key)) {
+        persistSnapshotsRef.current.set(key, getSnapshot())
       }
+
+      updateField(key, patch) // instant UI update
+
+      const existing = persistTimersRef.current.get(key)
+      if (existing) clearTimeout(existing)
+
+      persistTimersRef.current.set(
+        key,
+        setTimeout(async () => {
+          persistTimersRef.current.delete(key)
+          const snapshot = persistSnapshotsRef.current.get(key) ?? getSnapshot()
+          persistSnapshotsRef.current.delete(key)
+          try {
+            await patchBlockField(pageId, key, patch)
+            await revalidatePage(slug)
+          } catch {
+            revert(snapshot)
+            showToast('Failed to save changes. Your edits have been reverted.')
+          }
+        }, 300)
+      )
     },
     [pageId, slug, getSnapshot, updateField, revert, showToast]
   )

@@ -8,7 +8,7 @@ type Action =
   | { type: 'UPDATE_FIELD'; key: string; patch: Record<string, unknown> }
   | { type: 'REVERT'; snapshot: PageBlock[] }
 
-function reducer(state: PageBlock[], action: Action): PageBlock[] {
+export function reducer(state: PageBlock[], action: Action): PageBlock[] {
   switch (action.type) {
     case 'REORDER':
       return arrayMove(state, action.from, action.to)

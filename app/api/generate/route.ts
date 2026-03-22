@@ -1,23 +1,43 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { NextRequest } from 'next/server'
 import { validateGenerateToken } from '@/lib/studio/token-actions'
+import { logger } from '@/lib/logger'
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 })
 
-// In-memory rate limiter — resets on cold start (serverless).
-// Demo-grade: use Redis/Upstash in production for cross-instance limits.
-// Documented decision: prevents API key exhaustion from accidental loops,
-// not from determined attackers (who'd need the studio auth token anyway).
-const rateLimitStore = new Map<string, { count: number; resetAt: number }>()
+// ── Rate limiting ─────────────────────────────────────────────────────────────
+// Uses Upstash Redis when UPSTASH_REDIS_REST_URL is configured (recommended for
+// production — persistent across cold starts and instances).
+// Falls back to an in-memory store for local dev / demo deployments.
+
 const RATE_LIMIT_MAX = 10
 const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000 // 1 hour
 
-function checkRateLimit(sessionId: string): boolean {
+// Upstash path — loaded lazily so the module doesn't fail when env vars are absent
+async function checkRateLimitRedis(sessionId: string): Promise<boolean> {
+  const { Redis } = await import('@upstash/redis')
+  const { Ratelimit } = await import('@upstash/ratelimit')
+  const redis = new Redis({
+    url: process.env.UPSTASH_REDIS_REST_URL!,
+    token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+  })
+  const ratelimit = new Ratelimit({
+    redis,
+    limiter: Ratelimit.slidingWindow(RATE_LIMIT_MAX, '1 h'),
+    prefix: 'studio:generate',
+  })
+  const { success } = await ratelimit.limit(sessionId)
+  return success
+}
+
+// In-memory fallback — resets on cold start
+const rateLimitStore = new Map<string, { count: number; resetAt: number }>()
+
+function checkRateLimitMemory(sessionId: string): boolean {
   const now = Date.now()
   const entry = rateLimitStore.get(sessionId)
-
   if (!entry || now >= entry.resetAt) {
     rateLimitStore.set(sessionId, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS })
     return true
@@ -25,6 +45,13 @@ function checkRateLimit(sessionId: string): boolean {
   if (entry.count >= RATE_LIMIT_MAX) return false
   entry.count++
   return true
+}
+
+async function checkRateLimit(sessionId: string): Promise<boolean> {
+  if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
+    return checkRateLimitRedis(sessionId)
+  }
+  return checkRateLimitMemory(sessionId)
 }
 
 function buildPrompt(blockType: string, context: Record<string, string>): string {
@@ -127,7 +154,9 @@ export async function POST(req: NextRequest) {
 
   // ── Rate limit ─────────────────────────────────────────────────────────────
   const sessionId = req.headers.get('x-session-id') ?? 'anonymous'
-  if (!checkRateLimit(sessionId)) {
+  const allowed = await checkRateLimit(sessionId)
+  if (!allowed) {
+    logger.warn('generate_rate_limited', { sessionId })
     return new Response(
       JSON.stringify({ error: `Rate limit: max ${RATE_LIMIT_MAX} generations per hour` }),
       { status: 429, headers: { 'Content-Type': 'application/json' } }
@@ -149,6 +178,7 @@ export async function POST(req: NextRequest) {
   }
 
   const prompt = buildPrompt(blockType, context)
+  logger.info('generate_started', { blockType, sessionId })
 
   // ── SSE stream ─────────────────────────────────────────────────────────────
   const encoder = new TextEncoder()
@@ -178,9 +208,10 @@ export async function POST(req: NextRequest) {
         }
 
         send('[DONE]')
+        logger.info('generate_complete', { blockType, sessionId })
       } catch (err) {
-        // Log server-side, send generic error event to client
-        console.error('[/api/generate] stream error:', err)
+        const message = err instanceof Error ? err.message : String(err)
+        logger.error('generate_stream_error', { blockType, sessionId, message })
         send('[ERROR]')
       } finally {
         controller.close()

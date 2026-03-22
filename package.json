@@ -10,7 +10,9 @@
     "analyze": "ANALYZE=true next build",
     "codegen": "graphql-codegen --config codegen.ts",
     "sanity": "sanity",
-    "lhci": "lhci autorun"
+    "lhci": "lhci autorun",
+    "test": "jest",
+    "test:watch": "jest --watch"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.36.3",
@@ -24,6 +26,8 @@
     "@sanity/image-url": "^1.0.2",
     "@sanity/preview-kit": "^5.0.0",
     "@sanity/vision": "^3.57.0",
+    "@upstash/ratelimit": "^2.0.8",
+    "@upstash/redis": "^1.37.0",
     "graphql": "^16.9.0",
     "next": "15.1.0",
     "next-sanity": "^9.8.10",
@@ -38,9 +42,14 @@
     "@graphql-codegen/client-preset": "^4.4.0",
     "@lhci/cli": "^0.14.0",
     "@next/bundle-analyzer": "^15.1.0",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@types/jest": "^30.0.0",
     "@types/node": "^20.17.9",
     "@types/react": "^19.0.1",
     "@types/react-dom": "^19.0.1",
+    "jest": "^30.3.0",
+    "jest-environment-jsdom": "^30.3.0",
     "typescript": "^5.7.2"
   }
 }
