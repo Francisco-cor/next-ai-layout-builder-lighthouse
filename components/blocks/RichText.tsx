@@ -8,6 +8,7 @@ interface RichTextProps {
 export function RichText({ block }: RichTextProps) {
   return (
     <section
+      aria-label="Rich text content"
       style={{
         maxWidth: '720px',
         margin: '0 auto',

@@ -9,14 +9,13 @@ import type {
 } from '@/lib/graphql/__generated__/graphql'
 import { BlockRenderer } from '@/components/blocks/BlockRenderer'
 
-// ISR: rebuild every 60 seconds; stale pages still served from edge cache
+// ISR: rebuild every 60 seconds; stale pages served from edge in the meantime
 export const revalidate = 60
 
 interface PageProps {
   params: Promise<{ slug: string }>
 }
 
-// Build-time static generation — pre-renders all pages from Sanity
 export async function generateStaticParams() {
   const { data } = await getClient().query<GetAllPageSlugsQuery>({
     query: GET_ALL_PAGE_SLUGS,
@@ -56,7 +55,10 @@ export default async function SlugPage({ params }: PageProps) {
   const page = data.allPage?.[0]
   if (!page) notFound()
 
-  const blocks = page.blocks ?? []
-
-  return <BlockRenderer blocks={blocks} />
+  return (
+    // id targets the skip-to-content link in the root layout
+    <div id="main-content">
+      <BlockRenderer blocks={page.blocks ?? []} />
+    </div>
+  )
 }

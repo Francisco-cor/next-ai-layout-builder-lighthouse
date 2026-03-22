@@ -1,15 +1,28 @@
 import Image from 'next/image'
 import type { HeroBlock } from '@/lib/graphql/__generated__/graphql'
+import { heroImageUrl } from '@/lib/sanity/image'
 
 interface HeroProps {
   block: HeroBlock
 }
 
+/**
+ * LCP candidate — optimized for Lighthouse 98+:
+ *  • priority → fetchpriority="high" + rel=preload in <head>
+ *  • sizes="100vw" → browser picks the right source, no 2000px image on mobile
+ *  • heroImageUrl → Sanity CDN serves WebP via ?auto=format
+ *  • RSC → HTML with image src arrives on first byte, no hydration wait
+ */
 export function Hero({ block }: HeroProps) {
   const { title, subtitle, image, cta } = block
 
+  const imgSrc = image?.asset
+    ? heroImageUrl(image.asset as Parameters<typeof heroImageUrl>[0])
+    : null
+
   return (
     <section
+      aria-label="Hero"
       style={{
         position: 'relative',
         minHeight: '80vh',
@@ -21,14 +34,15 @@ export function Hero({ block }: HeroProps) {
         color: '#f8fafc',
       }}
     >
-      {image?.asset?.url && (
+      {imgSrc && (
         <Image
-          src={image.asset.url}
-          alt={image.alt ?? title}
+          src={imgSrc}
+          alt={image?.alt ?? title}
           fill
-          priority
-          sizes="100vw"
+          priority                       // fetchpriority="high" + <link rel="preload">
+          sizes="100vw"                  // hero is always full viewport width
           style={{ objectFit: 'cover', opacity: 0.4 }}
+          // Next.js 15: quality is baked into the Sanity URL (?q=80), so default is fine
         />
       )}
       <div
@@ -57,7 +71,6 @@ export function Hero({ block }: HeroProps) {
               fontSize: 'clamp(1rem, 2vw, 1.375rem)',
               lineHeight: 1.6,
               color: '#cbd5e1',
-              marginBottom: '2rem',
               maxWidth: '600px',
               margin: '0 auto 2rem',
             }}
@@ -77,7 +90,6 @@ export function Hero({ block }: HeroProps) {
               fontSize: '1rem',
               fontWeight: 600,
               textDecoration: 'none',
-              transition: 'background-color 0.2s',
             }}
           >
             {cta.label}

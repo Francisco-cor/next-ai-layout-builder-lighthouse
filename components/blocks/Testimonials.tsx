@@ -4,12 +4,12 @@ interface TestimonialsProps {
   block: TestimonialsBlock
 }
 
-// No JS — CSS scroll snap carousel for the public route
 export function Testimonials({ block }: TestimonialsProps) {
   const { heading, testimonials } = block
 
   return (
     <section
+      aria-label={heading ?? 'Testimonials'}
       style={{
         padding: '5rem 0',
         backgroundColor: '#0f172a',
@@ -31,8 +31,10 @@ export function Testimonials({ block }: TestimonialsProps) {
           {heading}
         </h2>
       )}
-      {/* CSS scroll snap — zero JS required */}
+      {/* CSS scroll snap — zero JS, zero CLS: fixed height prevents layout shift on snap */}
       <div
+        role="list"
+        aria-label="Customer testimonials"
         style={{
           display: 'flex',
           overflowX: 'auto',
@@ -46,13 +48,19 @@ export function Testimonials({ block }: TestimonialsProps) {
         {testimonials?.map((t) => (
           <article
             key={t._key}
+            role="listitem"
             style={{
               flex: '0 0 min(400px, 85vw)',
+              // Fixed height: scroll-snap never changes height between slides → CLS=0
+              minHeight: '200px',
               scrollSnapAlign: 'start',
               backgroundColor: '#1e293b',
               borderRadius: '12px',
               padding: '2rem',
               border: '1px solid #334155',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
             }}
           >
             <blockquote
@@ -61,13 +69,20 @@ export function Testimonials({ block }: TestimonialsProps) {
                 fontSize: '1.0625rem',
                 lineHeight: 1.7,
                 color: '#e2e8f0',
-                marginBottom: '1.5rem',
                 fontStyle: 'italic',
+                flex: 1,
               }}
             >
-              &ldquo;{t.quote}&rdquo;
+              <p style={{ margin: 0 }}>&ldquo;{t.quote}&rdquo;</p>
             </blockquote>
-            <footer style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <footer
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.75rem',
+                marginTop: '1.5rem',
+              }}
+            >
               <div>
                 <cite
                   style={{

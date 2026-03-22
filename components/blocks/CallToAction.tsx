@@ -4,7 +4,6 @@ interface CallToActionProps {
   block: CallToActionBlock
 }
 
-// Zero images — zero LCP impact
 export function CallToAction({ block }: CallToActionProps) {
   const {
     heading,
@@ -17,6 +16,7 @@ export function CallToAction({ block }: CallToActionProps) {
 
   return (
     <section
+      aria-label={heading}
       style={{
         backgroundColor: backgroundColor ?? '#4f46e5',
         color: textColor ?? '#ffffff',
@@ -39,7 +39,7 @@ export function CallToAction({ block }: CallToActionProps) {
           <p
             style={{
               fontSize: '1.125rem',
-              opacity: 0.85,
+              opacity: 0.9,
               marginBottom: '2rem',
               lineHeight: 1.6,
             }}
@@ -60,7 +60,6 @@ export function CallToAction({ block }: CallToActionProps) {
               textDecoration: 'none',
               fontWeight: 600,
               fontSize: '1rem',
-              backdropFilter: 'blur(4px)',
             }}
           >
             {buttonLabel}

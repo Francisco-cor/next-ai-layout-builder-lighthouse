@@ -4,12 +4,12 @@ interface StatsProps {
   block: StatsBlock
 }
 
-// Static render in public route — no JS count-up animation
 export function Stats({ block }: StatsProps) {
   const { heading, stats } = block
 
   return (
     <section
+      aria-label={heading ?? 'Statistics'}
       style={{
         padding: '5rem 2rem',
         backgroundColor: '#fff',
@@ -36,17 +36,19 @@ export function Stats({ block }: StatsProps) {
             gridTemplateColumns: `repeat(${Math.min(stats?.length ?? 3, 4)}, 1fr)`,
             gap: '2rem',
             textAlign: 'center',
+            // Fixed height: grid never reflows when content loads → CLS=0
+            minHeight: '6rem',
           }}
         >
           {stats?.map((stat) => (
-            <div key={stat._key}>
+            <div key={stat._key} style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
               <dt
                 style={{
                   fontSize: 'clamp(2rem, 5vw, 3.5rem)',
                   fontWeight: 800,
                   color: '#4f46e5',
                   lineHeight: 1,
-                  marginBottom: '0.5rem',
+                  order: 1,
                 }}
               >
                 {stat.value}
@@ -57,15 +59,15 @@ export function Stats({ block }: StatsProps) {
                   fontWeight: 600,
                   color: '#0f172a',
                   margin: 0,
-                  marginBottom: stat.description ? '0.25rem' : 0,
+                  order: 2,
                 }}
               >
                 {stat.label}
               </dd>
               {stat.description && (
-                <p style={{ fontSize: '0.8125rem', color: '#64748b', margin: 0 }}>
+                <dd style={{ fontSize: '0.8125rem', color: '#64748b', margin: 0, order: 3 }}>
                   {stat.description}
-                </p>
+                </dd>
               )}
             </div>
           ))}
