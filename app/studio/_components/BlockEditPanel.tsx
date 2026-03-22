@@ -1,9 +1,11 @@
 'use client'
+import { useCallback } from 'react'
 import type { PageBlock } from '@/lib/graphql/__generated__/graphql'
 import { TextField } from './fields/TextField'
 import { TextareaField } from './fields/TextareaField'
 import { ColorPickerField } from './fields/ColorPickerField'
 import { UrlField } from './fields/UrlField'
+import { AIGenerateButton } from './AIGenerateButton'
 
 const BLOCK_LABELS: Record<string, string> = {
   heroBlock: 'Hero',
@@ -21,6 +23,16 @@ interface BlockEditPanelProps {
 
 export function BlockEditPanel({ block, onUpdate }: BlockEditPanelProps) {
   const label = BLOCK_LABELS[block._type] ?? block._type
+
+  // Build AI context from current block fields for a richer prompt
+  const getContext = useCallback((): Record<string, string> => {
+    const b = block as Record<string, unknown>
+    return {
+      title: String(b.title ?? b.heading ?? ''),
+      subtitle: String(b.subtitle ?? b.subheading ?? ''),
+      blockType: block._type,
+    }
+  }, [block])
 
   return (
     <aside
@@ -41,6 +53,7 @@ export function BlockEditPanel({ block, onUpdate }: BlockEditPanelProps) {
           padding: '1rem 1.25rem',
           borderBottom: '1px solid #e2e8f0',
           backgroundColor: '#f8fafc',
+          flexShrink: 0,
         }}
       >
         <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginBottom: '2px' }}>Editing block</div>
@@ -48,7 +61,17 @@ export function BlockEditPanel({ block, onUpdate }: BlockEditPanelProps) {
       </div>
 
       {/* Fields — scrollable */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+      <div
+        style={{
+          flex: 1,
+          overflowY: 'auto',
+          padding: '1.25rem',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '1.25rem',
+        }}
+      >
+        {/* ── Hero ─────────────────────────────────────────────────────── */}
         {block._type === 'heroBlock' && (
           <>
             <TextField
@@ -74,17 +97,56 @@ export function BlockEditPanel({ block, onUpdate }: BlockEditPanelProps) {
               value={(block as { cta?: { href?: string } }).cta?.href ?? ''}
               onChange={(v) => onUpdate({ cta: { ...(block as { cta?: object }).cta, href: v } })}
             />
+            <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '1.25rem' }}>
+              <AIGenerateButton
+                blockType="heroBlock"
+                context={getContext()}
+                label="AI — Generate headline"
+                placeholder="AI will generate a title, subtitle, and CTA for your hero section…"
+                minHeight="4.5rem"
+                onAccept={(text) => {
+                  // Parse structured output: TITLE: / SUBTITLE: / CTA:
+                  const titleMatch = text.match(/TITLE:\s*(.+)/i)
+                  const subtitleMatch = text.match(/SUBTITLE:\s*(.+)/i)
+                  const ctaMatch = text.match(/CTA:\s*(.+)/i)
+                  const patch: Record<string, unknown> = {}
+                  if (titleMatch?.[1]) patch.title = titleMatch[1].trim()
+                  if (subtitleMatch?.[1]) patch.subtitle = subtitleMatch[1].trim()
+                  if (ctaMatch?.[1]) {
+                    const existing = (block as { cta?: object }).cta ?? {}
+                    patch.cta = { ...existing, label: ctaMatch[1].trim() }
+                  }
+                  if (Object.keys(patch).length > 0) onUpdate(patch)
+                }}
+              />
+            </div>
           </>
         )}
 
+        {/* ── Rich Text ─────────────────────────────────────────────────── */}
         {block._type === 'richTextBlock' && (
-          <div style={{ color: '#64748b', fontSize: '0.875rem', lineHeight: 1.6, padding: '0.5rem 0' }}>
-            Rich text editing via Sanity Studio.
-            <br /><br />
-            The AI generation button appears here in Week 3 (SSE streaming).
-          </div>
+          <>
+            <div style={{ fontSize: '0.8125rem', color: '#64748b', lineHeight: 1.6, padding: '0.25rem 0' }}>
+              Full rich text editing via Sanity Studio.
+            </div>
+            <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '1.25rem' }}>
+              <AIGenerateButton
+                blockType="richTextBlock"
+                context={getContext()}
+                label="AI — Generate body copy"
+                placeholder="AI will write 2-3 paragraphs of professional copy for this section. Takes up to 2 seconds — reverts to this placeholder if the connection is slow."
+                minHeight="7rem"
+                onAccept={(text) => {
+                  // Store as plain text in aiPrompt for now — Portable Text requires
+                  // the Sanity Studio editor for full rich text authoring.
+                  onUpdate({ aiPrompt: text })
+                }}
+              />
+            </div>
+          </>
         )}
 
+        {/* ── Feature Grid ──────────────────────────────────────────────── */}
         {block._type === 'featureGridBlock' && (
           <>
             <TextField
@@ -93,12 +155,24 @@ export function BlockEditPanel({ block, onUpdate }: BlockEditPanelProps) {
               onChange={(v) => onUpdate({ heading: v })}
               placeholder="Features section title"
             />
-            <div style={{ fontSize: '0.75rem', color: '#94a3b8', fontStyle: 'italic' }}>
-              Feature items edited in Sanity Studio (array editing coming Week 3).
+            <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '1.25rem' }}>
+              <AIGenerateButton
+                blockType="featureGridBlock"
+                context={getContext()}
+                label="AI — Generate features"
+                placeholder="AI will generate 3 product features with icons, titles, and descriptions…"
+                minHeight="5.5rem"
+                onAccept={(text) => {
+                  // Parse structured output and update heading as a preview
+                  // Full feature array editing requires Sanity Studio (array type)
+                  onUpdate({ aiPrompt: text })
+                }}
+              />
             </div>
           </>
         )}
 
+        {/* ── Testimonials ──────────────────────────────────────────────── */}
         {block._type === 'testimonialsBlock' && (
           <>
             <TextField
@@ -107,12 +181,22 @@ export function BlockEditPanel({ block, onUpdate }: BlockEditPanelProps) {
               onChange={(v) => onUpdate({ heading: v })}
               placeholder="What our customers say"
             />
-            <div style={{ fontSize: '0.75rem', color: '#94a3b8', fontStyle: 'italic' }}>
-              Testimonial items edited in Sanity Studio.
+            <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '1.25rem' }}>
+              <AIGenerateButton
+                blockType="testimonialsBlock"
+                context={getContext()}
+                label="AI — Generate testimonial"
+                placeholder="AI will write an authentic customer testimonial with author details…"
+                minHeight="5.5rem"
+                onAccept={(text) => {
+                  onUpdate({ aiPrompt: text })
+                }}
+              />
             </div>
           </>
         )}
 
+        {/* ── CTA ───────────────────────────────────────────────────────── */}
         {block._type === 'callToActionBlock' && (
           <>
             <TextField
@@ -147,9 +231,29 @@ export function BlockEditPanel({ block, onUpdate }: BlockEditPanelProps) {
               value={(block as { textColor?: string }).textColor ?? '#ffffff'}
               onChange={(v) => onUpdate({ textColor: v })}
             />
+            <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '1.25rem' }}>
+              <AIGenerateButton
+                blockType="callToActionBlock"
+                context={getContext()}
+                label="AI — Generate CTA copy"
+                placeholder="AI will write a heading, subheading, and button text for this CTA banner…"
+                minHeight="4.5rem"
+                onAccept={(text) => {
+                  const headingMatch = text.match(/HEADING:\s*(.+)/i)
+                  const subheadingMatch = text.match(/SUBHEADING:\s*(.+)/i)
+                  const buttonMatch = text.match(/BUTTON:\s*(.+)/i)
+                  const patch: Record<string, unknown> = {}
+                  if (headingMatch?.[1]) patch.heading = headingMatch[1].trim()
+                  if (subheadingMatch?.[1]) patch.subheading = subheadingMatch[1].trim()
+                  if (buttonMatch?.[1]) patch.buttonLabel = buttonMatch[1].trim()
+                  if (Object.keys(patch).length > 0) onUpdate(patch)
+                }}
+              />
+            </div>
           </>
         )}
 
+        {/* ── Stats ─────────────────────────────────────────────────────── */}
         {block._type === 'statsBlock' && (
           <>
             <TextField
@@ -158,8 +262,17 @@ export function BlockEditPanel({ block, onUpdate }: BlockEditPanelProps) {
               onChange={(v) => onUpdate({ heading: v })}
               placeholder="By the numbers"
             />
-            <div style={{ fontSize: '0.75rem', color: '#94a3b8', fontStyle: 'italic' }}>
-              Individual stat values edited in Sanity Studio.
+            <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '1.25rem' }}>
+              <AIGenerateButton
+                blockType="statsBlock"
+                context={getContext()}
+                label="AI — Generate statistics"
+                placeholder="AI will generate 4 compelling statistics with values and labels…"
+                minHeight="4.5rem"
+                onAccept={(text) => {
+                  onUpdate({ aiPrompt: text })
+                }}
+              />
             </div>
           </>
         )}
