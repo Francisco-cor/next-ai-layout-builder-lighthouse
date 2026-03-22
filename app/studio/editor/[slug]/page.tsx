@@ -1,6 +1,7 @@
 import dynamic from 'next/dynamic'
 import { notFound } from 'next/navigation'
 import { sanityClient } from '@/sanity/lib/client'
+import { EditorErrorBoundary } from '@/app/studio/_components/EditorErrorBoundary'
 
 // Dynamic import with no SSR — dnd-kit is browser-only.
 // This is the bundle isolation guarantee: the PageEditor and all its
@@ -46,11 +47,13 @@ export default async function EditorPage({ params }: Props) {
   if (!page) notFound()
 
   return (
-    <PageEditor
-      pageId={page._id}
-      slug={slug}
-      title={page.title}
-      initialBlocks={page.blocks ?? []}
-    />
+    <EditorErrorBoundary>
+      <PageEditor
+        pageId={page._id}
+        slug={slug}
+        title={page.title}
+        initialBlocks={page.blocks ?? []}
+      />
+    </EditorErrorBoundary>
   )
 }

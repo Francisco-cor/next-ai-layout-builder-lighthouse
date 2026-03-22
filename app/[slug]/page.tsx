@@ -8,6 +8,7 @@ import type {
   GetAllPageSlugsQuery,
 } from '@/lib/graphql/__generated__/graphql'
 import { BlockRenderer } from '@/components/blocks/BlockRenderer'
+import { PageBlocksSchema } from '@/lib/validation/blocks'
 
 // ISR: rebuild every 60 seconds; stale pages served from edge in the meantime
 export const revalidate = 60
@@ -55,10 +56,18 @@ export default async function SlugPage({ params }: PageProps) {
   const page = data.allPage?.[0]
   if (!page) notFound()
 
+  // Validate block data at runtime so a malformed Sanity document
+  // produces a clear error instead of a cryptic render crash.
+  const blocksResult = PageBlocksSchema.safeParse(page.blocks ?? [])
+  if (!blocksResult.success) {
+    console.error('[page] invalid block data from Sanity:', blocksResult.error.flatten())
+    notFound()
+  }
+
   return (
     // id targets the skip-to-content link in the root layout
     <div id="main-content">
-      <BlockRenderer blocks={page.blocks ?? []} />
+      <BlockRenderer blocks={blocksResult.data} />
     </div>
   )
 }

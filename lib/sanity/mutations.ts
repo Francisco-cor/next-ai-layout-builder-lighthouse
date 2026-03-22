@@ -38,16 +38,5 @@ export async function patchBlockOrder(
     .commit({ visibility: 'async' })
 }
 
-// Trigger Next.js ISR revalidation for the public page.
-// Fire-and-forget — ISR will catch up on the next interval if this fails.
-export async function revalidatePage(slug: string): Promise<void> {
-  const secret = process.env.NEXT_PUBLIC_REVALIDATE_SECRET ?? ''
-  try {
-    await fetch(
-      `/api/revalidate?slug=${encodeURIComponent(slug)}&secret=${secret}`,
-      { method: 'POST' }
-    )
-  } catch {
-    // non-critical
-  }
-}
+// revalidatePage has been moved to lib/sanity/server-actions.ts as a Server Action.
+// Import it from there — it uses revalidatePath directly (no secret needed on client).

@@ -1,5 +1,6 @@
 'use client'
 import { useState, useRef, useCallback, useEffect } from 'react'
+import { getGenerateToken } from '@/lib/studio/token-actions'
 
 export type GenerateState = 'idle' | 'streaming' | 'complete'
 
@@ -74,11 +75,15 @@ export function useAIGenerate({ blockType, context, onComplete }: UseAIGenerateO
     }, FIRST_TOKEN_TIMEOUT_MS)
 
     try {
+      // getGenerateToken runs on the server — STUDIO_AUTH_SECRET never reaches the client.
+      // The token is short-lived (60s) and HMAC-signed.
+      const studioToken = await getGenerateToken()
+
       const response = await fetch('/api/generate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-studio-token': process.env.NEXT_PUBLIC_STUDIO_AUTH_SECRET ?? '',
+          'x-studio-token': studioToken,
           'x-session-id': getSessionId(),
         },
         body: JSON.stringify({ blockType, context: context ?? {} }),

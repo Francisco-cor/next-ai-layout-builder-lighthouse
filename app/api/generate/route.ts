@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { NextRequest } from 'next/server'
+import { validateGenerateToken } from '@/lib/studio/token-actions'
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -114,10 +115,10 @@ ROLE: [Job title, Company name]`,
 
 export async function POST(req: NextRequest) {
   // ── Auth ──────────────────────────────────────────────────────────────────
-  // Shared secret: NEXT_PUBLIC_STUDIO_AUTH_SECRET (browser) must match
-  // STUDIO_AUTH_SECRET (server). Demo-grade gating — see README for production notes.
+  // Short-lived HMAC token issued by getGenerateToken() server action.
+  // STUDIO_AUTH_SECRET never reaches the client — only the signed token does.
   const token = req.headers.get('x-studio-token')
-  if (!token || token !== process.env.STUDIO_AUTH_SECRET) {
+  if (!validateGenerateToken(token)) {
     return new Response(JSON.stringify({ error: 'Unauthorized' }), {
       status: 401,
       headers: { 'Content-Type': 'application/json' },
